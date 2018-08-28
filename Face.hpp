@@ -1,5 +1,5 @@
 //
-//  Layer.hpp
+//  Face.hpp
 //  OpenGL-BabySteps
 //
 //  Created by João Pedro Berton Palharini on 4/23/18.
@@ -12,12 +12,9 @@
 
 using namespace std;
 
-class Rectangle {
+class Face {
 public:
-    double r;
-    double g;
-    double b;
-    bool show;
-
-    Rectangle(double inR, double inG, double inB, bool inShow);
+    vector<int> verts;
+    vector<int> norms;
+    vector<int> texts;
 };
