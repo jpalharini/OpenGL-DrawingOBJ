@@ -1,8 +1,20 @@
 #include "Includes.h"
 #include "Mesh.h"
+#include "math_funcs.h"
+#define _USE_MATH_DEFINES
+#include <math.h>
+
+
+using namespace std;
+
+const int WIDTH = 800;
+const int HEIGHT = 600;
+
+#define ONE_DEG_IN_RAD ( 2.0 * M_PI ) / 360.0
 
 Mesh* read (string filename) {
     Mesh* mesh = new Mesh;
+    Group *g = nullptr;
 
     ifstream arq(filename);
 
@@ -17,28 +29,44 @@ Mesh* read (string filename) {
         sline >> temp;
         // If vertex
         if (temp == "mtllib") {
-
+            continue;
         } else if (temp == "v") {
             float x, y, z;
             sline >> x >> y >> z;
             glm::vec3 *v = new glm::vec3(x, y, z);
             mesh->vertex.push_back(v);
         } else if (temp == "vt") {
-
+            float x, y;
+            sline >> x >> y;
+            glm::vec2 *v = new glm::vec2(x, y);
+            mesh->mappings.push_back(v);
         } else if (temp == "vn") {
-
+            float x, y, z;
+            sline >> x >> y >> z;
+            glm::vec3 *v = new glm::vec3(x, y, z);
+            mesh->normals.push_back(v);
         } else if (temp == "g") {
-
+            string inName;
+            sline >> inName;
+            g = new Group(inName, "default");
         } else if (temp == "usemtl") {
-
+            if (g == nullptr) {
+                g = new Group("default", "default");
+            }
+            string inMaterial;
+            sline >> inMaterial;
+            g->material = inMaterial;
         } else if (temp == "f") { // If face
-            Group *g = new Group('default', 'default');
+            if (g == nullptr) {
+                g = new Group("default", "default");
+            }
+            Face *f = new Face();
             while(!sline.eof()) {
                 string token;
                 sline >> token;
                 stringstream stoken;
+                stoken << token;
                 string aux[3];
-                Face *f = new Face();
                 int countParam = 0;
                 do {
                     getline(stoken, aux[countParam], '/');
@@ -50,125 +78,68 @@ Mesh* read (string filename) {
                             if (aux[i].empty()) {
                                 f->verts.push_back(-1);
                             } else {
-                                f->verts.push_back(stoi(aux[i]));
+                                f->verts.push_back(stoi(aux[i])-1);
                             }
+                            break;
                         case 1:
                             if (aux[i].empty()) {
                                 f->texts.push_back(-1);
                             } else {
-                                f->texts.push_back(stoi(aux[i]));
+                                f->texts.push_back(stoi(aux[i])-1);
                             }
+                            break;
                         case 2:
                             if (aux[i].empty()) {
                                 f->norms.push_back(-1);
                             } else {
-                                f->norms.push_back(stoi(aux[i]));
+                                f->norms.push_back(stoi(aux[i])-1);
                             }
+                            break;
                     }
                 }
             }
+            g->faces.push_back(f);
         }
     }
+    mesh->groups.push_back(g);
+    return mesh;
 }
 
-void drawScene() {
-    
+void loadVBO(Group* group) {
+    GLuint vao = group->vao;
+
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    for (unsigned int i = 0; i < group->faces.size(); i = i+1) {
+        glGenBuffers (1, &group->faces.at(i)->vbo);
+        glBindBuffer (GL_ARRAY_BUFFER, group->faces.at(i)->vbo);
+        glBufferData (GL_ARRAY_BUFFER, group->faces.at(i)->verts.size() * sizeof (glm::vec3), &group->faces.at(i)->verts, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    }
 }
 
 int main () {
     GLFWwindow* window = NULL;
+
     const GLubyte* renderer;
     const GLubyte* version;
-    GLuint vao, vao2;
-    GLuint vbo, vbo2;
-    /* geometry to use. these are 3 xyz points (9 floats total) to make a triangle
-    */
 
-    typedef struct Vertex {
-        GLfloat coords[3];
-    } VecXYZ;
-
-    VecXYZ points[3];
-    points[0].coords[0]=0.0f;
-    points[0].coords[1]=0.75f;
-    points[0].coords[2]=0.0f;
-    points[1].coords[0]=0.5f;
-    points[1].coords[1]=-0.5f;
-    points[1].coords[2]=0.0f;
-    points[2].coords[0]=-0.5f;
-    points[2].coords[1]=-0.5f;
-    points[2].coords[2]=0.0f;
-    /*
-    GLfloat points[] = {
-         0.0f,	0.5f,	0.0f,
-         0.5f, -0.5f,	0.0f,
-        -0.5f, -0.5f,	0.0f
-    };*/
-
-    GLfloat colors[]={
-            1.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f,
-            0.0f, 0.0f, 1.0f
-    };
-    /*
-    float matrix[] = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.25f, 0.25f, 0.0f, 1.0f
-        */
-    /**/
-    float matrix[] = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.0f,
-            0.0f, 0.0f, 0.0f, 1.0f
-            /**/
-    };
-    /* these are the strings of code for the shaders
-    the vertex shader positions each vertex point */
-    const char* vertex_shader =
-            "#version 410\n"
-            "layout(location=0) in vec3 vp;"
-            "layout(location=1) in vec3 vc;"
-            "uniform mat4 matrix;"
-            "out vec3 color;"
-            "void main () {"
-            "   color = vc;"
-            "	gl_Position = matrix * vec4 (vp, 1.0);"
-            "}";
-
-    /* the fragment shader colours each fragment (pixel-sized area of the
-    triangle) */
-    const char* fragment_shader =
-            "#version 410\n"
-            "in vec3 color;"
-            "out vec4 frag_color;"
-            "void main () {"
-            "	frag_color = vec4 (color, 1.0);"
-            "}";
-    /* GL shader objects for vertex and fragment shader [components] */
-    GLuint vs, fs, fs2;
-    /* GL shader programme object [combined, to link] */
-    GLuint shader_programme, shader_programme2;
-
-    /* start GL context and O/S window using the GLFW helper library */
     if (!glfwInit ()) {
         fprintf (stderr, "ERROR: could not start GLFW3\n");
         return 1;
     }
 
-    /* change to 3.2 if on Apple OS X */
     glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
+    glfwWindowHint (GLFW_RESIZABLE, GLFW_FALSE);
 
-    window = glfwCreateWindow (
-            640, 480, "CGR - GLSL - 03 - Moving Triangle", NULL, NULL
-    );
+    window = glfwCreateWindow (WIDTH, HEIGHT, "CGR - GLSL - 03 - Moving Triangle", NULL, NULL);
+
     if (!window) {
         fprintf (stderr, "ERROR: could not open window with GLFW3\n");
         glfwTerminate();
@@ -185,45 +156,79 @@ int main () {
     printf ("Renderer: %s\n", renderer);
     printf ("OpenGL version supported %s\n", version);
 
-    /* tell GL to only draw onto a pixel if the shape is closer to the viewer */
-    glEnable (GL_DEPTH_TEST); /* enable depth-testing */
-    glDepthFunc (GL_LESS);/*depth-testing interprets a smaller value as "closer"*/
+    int fbWidth;
+    int fbHeight;
+    glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
 
-    /* a vertex buffer object (VBO) is created here. this stores an array of data
-    on the graphics adapter's memory. in our case - the vertex points */
-    glGenBuffers (1, &vbo);
-    glBindBuffer (GL_ARRAY_BUFFER, vbo);
-    glBufferData (GL_ARRAY_BUFFER, 9 * sizeof (GLfloat), points, GL_STATIC_DRAW);
+    float matrix[] = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+    };
 
+    GLfloat points[] = {
+            0.0f, 0.5f, 0.0f,
+            0.5f, -0.5f, 0.0f,
+            -0.5f, -0.5f, 0.0f
+    };
 
+    GLfloat colours[] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f };
+
+    GLuint vao;
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
-    glEnableVertexAttribArray(0); // habilitado primeiro atributo do vbo bound atual
-    glBindBuffer(GL_ARRAY_BUFFER, vbo); // identifica vbo atual
-// associação do vbo atual com primeiro atributo
-// 0 identifica que o primeiro atributo está sendo definido
-// 3, GL_FLOAT identifica que dados são vec3 e estão a cada 3 float.
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
-// é possível associar outros atributos, como normais, mapeamento e cores
-// lembre-se: um por vértice!
-    GLuint colorsVBO;
-    glGenBuffers (1, &colorsVBO);
-    glBindBuffer (GL_ARRAY_BUFFER, colorsVBO);
-    glBufferData (GL_ARRAY_BUFFER, 9 * sizeof (GLfloat), colors, GL_STATIC_DRAW);
+    GLuint points_vbo;
+    glGenBuffers(1, &points_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, points_vbo);
+    glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(GLfloat), points, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-    glBindBuffer(GL_ARRAY_BUFFER, colorsVBO);
-// note que agora o atributo 1 está definido
+    GLuint colours_vbo;
+    glGenBuffers(1, &colours_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, colours_vbo);
+    glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(GLfloat), colours, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-    glEnableVertexAttribArray(1); // habilitado segundo atributo do vbo bound atual
 
-    /* here we copy the shader strings into GL shaders, and compile them. we then
-    create an executable shader 'program' and attach both of the compiled shaders.
-    we link this, which matches the outputs of the vertex shader to the inputs of
-    the fragment shader, etc. and it is then ready to use */
+    /* these are the strings of code for the shaders
+    the vertex shader positions each vertex point */
+    const char* vertex_shader =
+            "#version 410\n"
+            "layout(location=0) in vec3 vp;"
+            "layout(location=1) in vec3 vc;"
+            "uniform mat4 projection, view;"
+            "out vec3 color;"
+            "void main () {"
+            "   color = vc;"
+            "	gl_Position = projection * view * vec4 (vp, 1.0);"
+            "}";
+
+    /* the fragment shader colours each fragment (pixel-sized area of the
+    triangle) */
+    const char* fragment_shader =
+            "#version 410\n"
+            "in vec3 color;"
+            "out vec4 frag_color;"
+            "void main () {"
+            "	frag_color = vec4 (color, 1.0);"
+            "}";
+
+    /* GL shader objects for vertex and fragment shader [components] */
+    GLuint vs, fs;
+    /* GL shader programme object [combined, to link] */
+    GLuint shader_programme;
+
+    /* tell GL to only draw onto a pixel if the shape is closer to the viewer */
+    glEnable (GL_DEPTH_TEST); /* enable depth-testing */
+    glDepthFunc (GL_LESS); /*depth-testing interprets a smaller value as "closer"*/
+
     vs = glCreateShader (GL_VERTEX_SHADER);
     glShaderSource (vs, 1, &vertex_shader, NULL);
     glCompileShader (vs);
+
     fs = glCreateShader (GL_FRAGMENT_SHADER);
     glShaderSource (fs, 1, &fragment_shader, NULL);
     glCompileShader (fs);
@@ -233,46 +238,88 @@ int main () {
     glAttachShader (shader_programme, vs);
     glLinkProgram (shader_programme);
 
-    int matrixLocation = glGetUniformLocation(shader_programme, "matrix");
-    //glUseProgram (shader_programme);
-    //glUniformMatrix4fv(matrixLocation, 1, GL_FALSE, matrix);
+    // Projection matrix
+    float near = 0.1f;									// clipping plane
+    float far = 100.0f;									// clipping plane
+    float fov = 67.0f * ONE_DEG_IN_RAD; // convert 67 degrees to radians
+    float aspect = (float) WIDTH / (float) HEIGHT; // aspect ratio
+    // matrix components
+    float range = tan(fov * 0.5f) * near;
+    float Sx = (2.0f * near) / (range * aspect + range * aspect);
+    float Sy = near / range;
+    float Sz = -(far + near) / (far - near);
+    float Pz = -(2.0f * far * near) / (far - near);
 
-    glClearColor(0.6f, 0.6f, 0.8f, 1.0f);
+//    GLfloat projection[] = {
+//            Sx,    +0.0f, +0.0f,  +0.0f,
+//            +0.0f, Sy,    +0.0f,  +0.0f,
+//            +0.0f, +0.0f, Sz,     Pz,
+//            +0.0f, +0.0f, -1.0f,  +0.0f
+//    };
 
-    /* this loop clears the drawing surface, then draws the geometry described by
-    the VAO onto the drawing surface. we 'poll events' to see if the window was
-    closed, etc. finally, we 'swap the buffers' which displays our drawing surface
-    onto the view area. we use a double-buffering system which means that we have
-    a 'currently displayed' surface, and 'currently being drawn' surface. hence
-    the 'swap' idea. in a single-buffering system we would see stuff being drawn
-    one-after-the-other */
+    GLfloat projection[] = {
+            Sx,	 0.0f, 0.0f, 0.0f,
+            0.0f, Sy, 0.0f, 0.0f,
+            0.0f, 0.0f, Sz,	-1.0f,
+            0.0f, 0.0f, Pz,	0.0f
+    };
 
-    float speed = 1.0f;
-    float lastPosition = 0.0f;
+//    glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 2.0f);
+//    glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
+//    glm::vec3 cameraDirection = glm::normalize(cameraPos - cameraTarget);
+//
+//    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+//    glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraDirection));
+//    glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
+//
+//    GLfloat view[] = {
+//            +cameraRight.x,     +cameraRight.y,     +cameraRight.z,     -cameraPos.x,
+//            +cameraUp.x,        +cameraUp.y,        +cameraUp.z,        -cameraPos.y,
+//            -cameraDirection.x, -cameraDirection.y, -cameraDirection.z, -cameraPos.z,
+//            +0.0f,               +0.0f,             +0.0f,              +1.0f
+//    };
+
+    /* create VIEW MATRIX */
+    float cam_speed = 1.0f;			 // 1 unit per second
+    float cam_yaw_speed = 10.0f; // 10 degrees per second
+    float cam_pos[] = { 0.0f, 0.0f, 3.0f }; // don't start at zero, or we will be too close
+    float cam_yaw = 0.0f;				// y-rotation in degrees
+    mat4 T = translate(identity_mat4(), vec3( -cam_pos[0], -cam_pos[1], -cam_pos[2] ) );
+    mat4 R = rotate_y_deg( identity_mat4(), -cam_yaw );
+    mat4 view_mat = R * T;
+
+    GLint projectionLocation = glGetUniformLocation(shader_programme, "projection");
+    GLint viewLocation = glGetUniformLocation(shader_programme, "view");
+
     glUseProgram (shader_programme);
+
+    glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, projection);
+    glUniformMatrix4fv(viewLocation, 1, GL_FALSE, view_mat.m);
+
+    Mesh* readMesh = read("../Resources/mesa01.obj");
+    loadVBO(readMesh->groups[0]);
+
+    //cout << "Mesh should be in memory" << endl;
+
+    glEnable(GL_CULL_FACE); // cull face
+    glCullFace(GL_BACK);		// cull back face
+    glFrontFace(GL_CW);
+
     while (!glfwWindowShouldClose (window)) {
 
-        static double previousSeconds = glfwGetTime();
-        double currentSeconds = glfwGetTime();
-        double elapsedSeconds = currentSeconds - previousSeconds;
-        if(elapsedSeconds > 0) {
-            previousSeconds = currentSeconds;
-            if(fabs(lastPosition) > 1.0f){
-                speed = -speed;
-            }
-            matrix[12] = elapsedSeconds * speed + lastPosition;
-            lastPosition = matrix[12];
-        }
-
-        glUniformMatrix4fv(matrixLocation, 1, GL_FALSE, matrix);
+        //glUniformMatrix4fv(matrixLocation, 1, GL_FALSE, matrix);
 
         /* wipe the drawing surface clear */
         glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-//		glUseProgram (shader_programme);
+        glViewport(0, 0, WIDTH, HEIGHT);
 
-        glBindVertexArray (vao);
-        /* draw points 0-3 from the currently bound VAO with current in-use shader*/
-        glDrawArrays (GL_TRIANGLES, 0, 3);
+//        glBindVertexArray (readMesh->groups[0]->vao);
+//        /* draw points 0-3 from the currently bound VAO with current in-use shader*/
+//        glDrawArrays (GL_TRIANGLES, 0, 12*3);
+
+        glBindVertexArray(readMesh->groups[0]->vao);
+        // draw points 0-3 from the currently bound VAO with current in-use shader
+        glDrawArrays(GL_TRIANGLES, 0, 3);
 
         /* update other events like input handling */
         glfwPollEvents ();

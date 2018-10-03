@@ -11,7 +11,7 @@ add_executable(OpenGL_CG
         Face.cpp
         Face.hpp
         main.cpp
-        Group.cpp Group.h Mesh.cpp Mesh.h)
+        Group.cpp Group.h Mesh.cpp Mesh.h math_funcs.cpp math_funcs.h)
 
 find_package(PkgConfig REQUIRED)
 pkg_search_module(GLFW REQUIRED glfw3)

@@ -13,7 +13,10 @@ public:
     string name;
     string material;
     vector<Face*> faces;
-};
+    GLuint vao;
+    GLuint vbo;
 
+    Group (string n, string m);
+};
 
 #endif //OPENGL_CG_GROUP_H

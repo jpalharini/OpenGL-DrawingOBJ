@@ -17,4 +17,5 @@ public:
     vector<int> verts;
     vector<int> norms;
     vector<int> texts;
+    GLuint vbo;
 };
