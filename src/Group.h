@@ -14,7 +14,6 @@ public:
     string material;
     vector<Face*> faces;
     GLuint vao;
-    GLuint vbo;
 
     Group (string n, string m);
 };

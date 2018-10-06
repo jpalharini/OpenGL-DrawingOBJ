@@ -13,9 +13,9 @@
 | A versor is the proper name for a unit quaternion.                           |
 \******************************************************************************/
 #include "math_funcs.h"
-#include <stdio.h>
+#include <cstdio>
 #define _USE_MATH_DEFINES
-#include <math.h>
+#include <cmath>
 
 /*--------------------------------CONSTRUCTORS--------------------------------*/
 vec2::vec2() {}

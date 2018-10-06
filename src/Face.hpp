@@ -5,7 +5,7 @@
 //  Created by João Pedro Berton Palharini on 4/23/18.
 //  Copyright © 2018 Unisinos. All rights reserved.
 //
-#include <stdio.h>
+#include <cstdio>
 
 // GLFW
 #include "Includes.h"
@@ -17,5 +17,4 @@ public:
     vector<int> verts;
     vector<int> norms;
     vector<int> texts;
-    GLuint vbo;
 };

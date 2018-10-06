@@ -7,11 +7,18 @@ include_directories(.)
 
 add_executable(OpenGL_CG
         CMakeLists.txt
-        Includes.h
-        Face.cpp
-        Face.hpp
-        main.cpp
-        Group.cpp Group.h Mesh.cpp Mesh.h math_funcs.cpp math_funcs.h)
+        src/Includes.h
+        src/Face.cpp
+        src/Face.hpp
+        src/main.cpp
+        src/Group.cpp
+        src/Group.h
+        src/Mesh.cpp
+        src/Mesh.h
+        src/math_funcs.cpp
+        src/math_funcs.h
+        src/Material.cpp
+        src/Material.h)
 
 find_package(PkgConfig REQUIRED)
 pkg_search_module(GLFW REQUIRED glfw3)

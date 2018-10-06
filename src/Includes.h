@@ -8,11 +8,11 @@
 
 #include <iostream>
 #include <string>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <unistd.h>
 #include <vector>
-#include <math.h>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 
@@ -26,5 +26,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
 
 using namespace std;
