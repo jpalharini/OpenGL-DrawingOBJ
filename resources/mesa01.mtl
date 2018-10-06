@@ -1,0 +1,9 @@
+newmtl lambert2SG
+
+Ka 0.15 0.15 0.15
+Kd 0.50 0.50 0.50
+
+map_Kd ../Resources/mesa01.bmp
+Ks 1.00 1.00 1.00
+Ns 0.06
+
