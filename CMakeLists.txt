@@ -18,7 +18,7 @@ add_executable(OpenGL_CG
         src/math_funcs.cpp
         src/math_funcs.h
         src/Material.cpp
-        src/Material.h)
+        src/Material.h src/Utils.cpp src/Utils.h)
 
 find_package(PkgConfig REQUIRED)
 pkg_search_module(GLFW REQUIRED glfw3)

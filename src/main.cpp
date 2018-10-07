@@ -8,12 +8,12 @@
 
 #define _USE_MATH_DEFINES
 #include <cmath>
-
+#include "Utils.h"
 
 using namespace std;
 
-const int WIDTH = 800;
-const int HEIGHT = 600;
+const int WIDTH = 1280;
+const int HEIGHT = 720;
 
 vector<Material*> materials;
 
@@ -263,10 +263,10 @@ int main () {
     glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
     glfwWindowHint (GLFW_RESIZABLE, GLFW_FALSE);
 
-    window = glfwCreateWindow (WIDTH, HEIGHT, "CGR - GLSL - 03 - Moving Triangle", nullptr, nullptr);
+    window = glfwCreateWindow (WIDTH, HEIGHT, "CG - TGA", nullptr, nullptr);
 
     if (!window) {
-        fprintf (stderr, "ERROR: could not open window with GLFW3\n");
+        fprintf (stderr, "ERROR: could not open window with GLFW 4\n");
         glfwTerminate();
         return 1;
     }
@@ -285,33 +285,14 @@ int main () {
     int fbHeight;
     glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
 
-    /* these are the strings of code for the shaders
-    the vertex shader positions each vertex point */
-    const char* vertex_shader =
-            "#version 410\n"
-            "layout(location=0) in vec3 vp;"
-            "layout(location=1) in vec3 vn;"
-            "layout(location=2) in vec2 vt;"
-            "uniform mat4 projection, view;"
-            "out vec2 texCoord;"
-            "void main () {"
-            "   texCoord = vt;"
-            "	gl_Position = projection * view * vec4 (vp, 1.0);"
-            "}";
+    char vertex_shader[1024 * 256];
+    char fragment_shader[1024 * 256];
+    parse_file_into_str("../src/shaders/VertexShader.glsl", vertex_shader, 1024 * 256);
+    parse_file_into_str("../src/shaders/FragmentShader.glsl", fragment_shader, 1024 * 256);
 
-    /* the fragment shader colours each fragment (pixel-sized area of the
-    triangle) */
-    const char* fragment_shader =
-            "#version 410\n"
-            "in vec2 texCoord;"
-            "uniform sampler2D theTexture;"
-            "out vec4 color;"
-            "void main () {"
-            "	color = texture(theTexture, texCoord);"
-            "}";
 
     /* GL shader objects for vertex and fragment shader [components] */
-    GLuint vs, fs;
+    GLuint vsID, fsID;
     /* GL shader programme object [combined, to link] */
     GLuint shader_programme;
 
@@ -319,17 +300,19 @@ int main () {
     glEnable (GL_DEPTH_TEST); /* enable depth-testing */
     glDepthFunc (GL_LESS); /*depth-testing interprets a smaller value as "closer"*/
 
-    vs = glCreateShader (GL_VERTEX_SHADER);
-    glShaderSource (vs, 1, &vertex_shader, nullptr);
-    glCompileShader (vs);
+    vsID = glCreateShader (GL_VERTEX_SHADER);
+    auto vs = (const GLchar *) vertex_shader;
+    glShaderSource (vsID, 1, &vs, nullptr);
+    glCompileShader (vsID);
 
-    fs = glCreateShader (GL_FRAGMENT_SHADER);
-    glShaderSource (fs, 1, &fragment_shader, nullptr);
-    glCompileShader (fs);
+    fsID = glCreateShader (GL_FRAGMENT_SHADER);
+    auto fs = (const GLchar *) fragment_shader;
+    glShaderSource (fsID, 1, &fs, nullptr);
+    glCompileShader (fsID);
 
     shader_programme = glCreateProgram ();
-    glAttachShader (shader_programme, fs);
-    glAttachShader (shader_programme, vs);
+    glAttachShader (shader_programme, fsID);
+    glAttachShader (shader_programme, vsID);
     glLinkProgram (shader_programme);
 
     // Projection matrix
