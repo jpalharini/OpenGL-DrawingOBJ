@@ -7,5 +7,4 @@
 
 bool parse_file_into_str(const char *file_name, char *shader_str, int max_len);
 
-
 #endif //OPENGL_CG_UTILS_H

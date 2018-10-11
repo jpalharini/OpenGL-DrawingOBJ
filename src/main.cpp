@@ -20,6 +20,7 @@ vector<Material*> materials;
 #define ONE_DEG_IN_RAD (( 2.0 * M_PI ) / 360.0)
 
 GLuint loadTexture(const char* filename) {
+    // Enabling texture processing
     glEnable(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -32,6 +33,7 @@ GLuint loadTexture(const char* filename) {
 
     GLuint texture;
 
+    // Loading image with filename from parameter
     data = stbi_load(filename, &texWidth, &texHeight, &nrChannels, 0);
 
     glGenTextures(1, &texture);
@@ -41,10 +43,11 @@ GLuint loadTexture(const char* filename) {
     glBindTexture(GL_TEXTURE_2D, texture);
 
     if (data) {
+        // The image I chose has no alpha channel, so using GL_RGB to process it
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texWidth, texHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
     } else {
-        std::cout << "Failed to load texture for tiles" << std::endl;
+        std::cout << "Failed to load texture" << std::endl;
     }
 
     stbi_image_free(data);
@@ -52,6 +55,7 @@ GLuint loadTexture(const char* filename) {
     return texture;
 }
 
+// Read a MTL file
 void readMTL(const string filename) {
     Material* m = nullptr;
 
@@ -68,6 +72,7 @@ void readMTL(const string filename) {
         sline >> temp;
 
         if (temp == "newmtl") {
+            // If a material was already loaded, add it to vector of materials before creating a new one
             if (m != nullptr) {
                 materials.push_back(m);
             }
@@ -99,6 +104,7 @@ void readMTL(const string filename) {
     materials.push_back(m);
 }
 
+// Read OBJ file
 Mesh* readOBJ(const string filename) {
     auto mesh = new Mesh;
     Group *g = nullptr;
@@ -112,44 +118,54 @@ Mesh* readOBJ(const string filename) {
         // Load string into stream (memory)
         sline << line;
         string temp;
-        // Reads identifier of object being readOBJ
+        // Reads identifier of object being read
         sline >> temp;
-        // If vertex
+        // If it's a material, call readMTL()
         if (temp == "mtllib") {
             string mtlFile;
             sline >> mtlFile;
             readMTL(mtlFile);
+        // If vertex
         } else if (temp == "v") {
             float x, y, z;
             sline >> x >> y >> z;
             auto *v = new glm::vec3(x, y, z);
             mesh->vertex.push_back(v);
+        // If texture coordinate
         } else if (temp == "vt") {
             float x, y;
             sline >> x >> y;
             auto *v = new glm::vec2(x, y);
             mesh->mappings.push_back(v);
+        // If normal
         } else if (temp == "vn") {
             float x, y, z;
             sline >> x >> y >> z;
             auto *v = new glm::vec3(x, y, z);
             mesh->normals.push_back(v);
         } else if (temp == "g") {
+            if (g != nullptr) {
+                mesh->groups.push_back(g);
+            }
             string inName;
             sline >> inName;
             g = new Group(inName, "default");
+        // Check if a material is referenced
         } else if (temp == "usemtl") {
+            // If a group doesn't exist, create a default one
             if (g == nullptr) {
                 g = new Group("default", "default");
             }
             string inMaterial;
             sline >> inMaterial;
             g->material = inMaterial;
-        } else if (temp == "f") { // If face
+        // If face
+        } else if (temp == "f") {
             if (g == nullptr) {
                 g = new Group("default", "default");
             }
             auto *f = new Face();
+            // Read all faces until EOF
             while(!sline.eof()) {
                 string token;
                 sline >> token;
@@ -159,6 +175,7 @@ Mesh* readOBJ(const string filename) {
                 stringstream stoken;
                 stoken << token;
                 string aux[3];
+                // Count parameters of face
                 int countParam = -1;
                 do {
                     countParam = countParam + 1;
@@ -166,6 +183,7 @@ Mesh* readOBJ(const string filename) {
                 } while (!stoken.eof());
                 for (int i = 0; i < 3; i = i + 1) {
                     switch (i) {
+                        // In position 0, it's an index for vertex
                         case 0:
                             if (aux[i].empty()) {
                                 f->verts.push_back(-1);
@@ -173,6 +191,7 @@ Mesh* readOBJ(const string filename) {
                                 f->verts.push_back(stoi(aux[i])-1);
                             }
                             break;
+                        // In position 1, it's an index for texture mapping
                         case 1:
                             if (aux[i].empty()) {
                                 f->texts.push_back(-1);
@@ -180,6 +199,7 @@ Mesh* readOBJ(const string filename) {
                                 f->texts.push_back(stoi(aux[i])-1);
                             }
                             break;
+                        // In position 2, it's an index for normals
                         case 2:
                             if (aux[i].empty()) {
                                 f->norms.push_back(-1);
@@ -192,17 +212,21 @@ Mesh* readOBJ(const string filename) {
                     }
                 }
             }
+            // Add face to group
             g->faces.push_back(f);
         }
     }
+    // Add group to mesh
     mesh->groups.push_back(g);
     return mesh;
 }
 
+// Load vertices, texture mappings and normals into the groups' VAOs
 void loadVertices(Mesh* mesh) {
 
     for (Group* g : mesh->groups) {
         vector<float> vs;
+        vector<float> vn;
         vector<float> vt;
 
         for (Face* f : g->faces) {
@@ -212,6 +236,14 @@ void loadVertices(Mesh* mesh) {
                 vs.push_back(v->x);
                 vs.push_back(v->y);
                 vs.push_back(v->z);
+            }
+
+            for (int i = 0; i < f->verts.size(); i = i + 1) {
+                int vi = f->norms[i];
+                glm::vec3* v = mesh->normals[vi];
+                vn.push_back(v->x);
+                vn.push_back(v->y);
+                vn.push_back(v->z);
             }
 
             for (int i = 0; i < f->verts.size(); i = i + 1) {
@@ -226,6 +258,7 @@ void loadVertices(Mesh* mesh) {
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
 
+        // VBO for vertices
         GLuint vboVerts;
         glGenBuffers (1, &vboVerts);
         glBindBuffer (GL_ARRAY_BUFFER, vboVerts);
@@ -233,7 +266,15 @@ void loadVertices(Mesh* mesh) {
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-        // vboTexts
+        // VBO for normals
+        GLuint vboNorms;
+        glGenBuffers (1, &vboNorms);
+        glBindBuffer (GL_ARRAY_BUFFER, vboNorms);
+        glBufferData (GL_ARRAY_BUFFER, vn.size() * sizeof (float), vn.data(), GL_STATIC_DRAW);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+        // VBO for texture mappings
         GLuint vboTexts;
         glGenBuffers (1, &vboTexts);
         glBindBuffer (GL_ARRAY_BUFFER, vboTexts);
@@ -241,6 +282,7 @@ void loadVertices(Mesh* mesh) {
         glEnableVertexAttribArray(2);
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
 
+        // Store VAO for group
         g->vao = vao;
     }
 }
@@ -256,49 +298,49 @@ int main () {
         return 1;
     }
 
+    // Sets GLFW/OpenGL version to 4.1
     glfwWindowHint (GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 1);
-    glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint (GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
+    // Disables resizing, because it's not properly implemented (shame) - TODO: implement window resizing
     glfwWindowHint (GLFW_RESIZABLE, GLFW_FALSE);
 
-    window = glfwCreateWindow (WIDTH, HEIGHT, "CG - TGA", nullptr, nullptr);
+    // Sets up the window
+    window = glfwCreateWindow(WIDTH, HEIGHT, "CG - TGA", nullptr, nullptr);
 
     if (!window) {
-        fprintf (stderr, "ERROR: could not open window with GLFW 4\n");
+        fprintf (stderr, "ERROR: could not open window\n");
         glfwTerminate();
         return 1;
     }
     glfwMakeContextCurrent (window);
-    /* start GLEW extension handler */
     glewExperimental = GL_TRUE;
     glewInit ();
 
-    /* get version info */
-    renderer = glGetString (GL_RENDERER); /* get renderer string */
-    version = glGetString (GL_VERSION); /* version as a string */
+    // Get version info for renderer, shows GPU model
+    renderer = glGetString (GL_RENDERER);
+    version = glGetString (GL_VERSION);
     printf ("Renderer: %s\n", renderer);
     printf ("OpenGL version supported %s\n", version);
 
+    // Gets the framebuffer size, useful for HiDPI displays
     int fbWidth;
     int fbHeight;
     glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
 
+    // Loads vertex and fragment shaders from external files - makes it easier to program :)
     char vertex_shader[1024 * 256];
     char fragment_shader[1024 * 256];
     parse_file_into_str("../src/shaders/VertexShader.glsl", vertex_shader, 1024 * 256);
     parse_file_into_str("../src/shaders/FragmentShader.glsl", fragment_shader, 1024 * 256);
 
-
-    /* GL shader objects for vertex and fragment shader [components] */
     GLuint vsID, fsID;
-    /* GL shader programme object [combined, to link] */
-    GLuint shader_programme;
+    GLuint shaderProgram;
 
-    /* tell GL to only draw onto a pixel if the shape is closer to the viewer */
-    glEnable (GL_DEPTH_TEST); /* enable depth-testing */
-    glDepthFunc (GL_LESS); /*depth-testing interprets a smaller value as "closer"*/
+    // Sets up depth testing
+    glEnable (GL_DEPTH_TEST);
+    glDepthFunc (GL_LESS);
 
     vsID = glCreateShader (GL_VERTEX_SHADER);
     auto vs = (const GLchar *) vertex_shader;
@@ -310,10 +352,10 @@ int main () {
     glShaderSource (fsID, 1, &fs, nullptr);
     glCompileShader (fsID);
 
-    shader_programme = glCreateProgram ();
-    glAttachShader (shader_programme, fsID);
-    glAttachShader (shader_programme, vsID);
-    glLinkProgram (shader_programme);
+    shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, fsID);
+    glAttachShader(shaderProgram, vsID);
+    glLinkProgram(shaderProgram);
 
     // Projection matrix
     float near = 0.1f;									// clipping plane
@@ -336,62 +378,146 @@ int main () {
 
 
     /* create VIEW MATRIX */
-    float cam_speed = 1.0f;			 // 1 unit per second
+    float cam_speed = 3.0f;			 // 1 unit per second
     float cam_yaw_speed = 10.0f; // 10 degrees per second
-    float cam_pos[] = {0.0f, 3.0f, 15.0f }; // don't start at zero, or we will be too close
+    float cam_pos[] = {0.0f, 11.5f, 20.0f}; // don't start at zero, or we will be too close
     float cam_yaw = 0.0f;				// y-rotation in degrees
     mat4 T = translate(identity_mat4(), vec3( -cam_pos[0], -cam_pos[1], -cam_pos[2] ) );
     mat4 R = rotate_y_deg( identity_mat4(), -cam_yaw );
-    mat4 view_mat = R * T;
+    mat4 view = R * T;
 
-    GLint projectionLocation = glGetUniformLocation(shader_programme, "projection");
-    GLint viewLocation = glGetUniformLocation(shader_programme, "view");
+    mat4 model = identity_mat4();
 
-    glUseProgram (shader_programme);
+    GLint projectionLocation = glGetUniformLocation(shaderProgram, "projection");
+    GLint viewLocation = glGetUniformLocation(shaderProgram, "view");
+    GLint modelLocation = glGetUniformLocation(shaderProgram, "model");
+
+    glUseProgram (shaderProgram);
 
     glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, projection);
-    glUniformMatrix4fv(viewLocation, 1, GL_FALSE, view_mat.m);
+    glUniformMatrix4fv(viewLocation, 1, GL_FALSE, view.m);
+    glUniformMatrix4fv(modelLocation, 1, GL_FALSE, model.m);
 
-    glEnable(GL_CULL_FACE); // cull face
-    glCullFace(GL_BACK);		// cull back face
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    // Rendering points in counter-clockwise
     glFrontFace(GL_CCW);
 
-    Mesh* readMesh = readOBJ("../resources/mesa01.obj");
+    // Reads the mesh from file
+    Mesh* readMesh = readOBJ("../resources/cenaPaintball.obj");
+    // Load VAOs and VBOs from read mesh
     loadVertices(readMesh);
 
-    //cout << "Mesh should be in memory" << endl;
+    // Define background color - default is black, values below are for a dark grey which is useful for troubleshooting
+    glClearColor(0.2f, 0.2f, 0.2f, 0.2f);
 
-    glClearColor( 0.2, 0.2, 0.2, 1.0 );
+    // Gets logging from shaders
+    int max_length = 2048;
+    int actual_length = 0;
+    char logVS[2048];
+    glGetShaderInfoLog(vsID, max_length, &actual_length, logVS);
+    printf("Vertex Shader info log:\n%s\n", logVS);
+
+    char logFS[2048];
+    glGetShaderInfoLog(fsID, max_length, &actual_length, logFS);
+    printf("Fragment Shader info log:\n%s\n", logFS);
+
+    char logSP[2048];
+    glGetProgramInfoLog(shaderProgram, max_length, &actual_length, logSP);
+    printf("Shader Program info log:\n%s", logSP);
 
     while (!glfwWindowShouldClose (window)) {
+        // To make movements smoother, we measure the framerate using this logic
+        static double previous_seconds = glfwGetTime();
+        double current_seconds = glfwGetTime();
+        double elapsed_seconds = current_seconds - previous_seconds;
+        previous_seconds = current_seconds;
 
-        //glUniformMatrix4fv(matrixLocation, 1, GL_FALSE, matrix);
-
-        /* wipe the drawing surface clear */
         glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Sets up the viewport size, note that we use framebuffer values to accomodate HiDPI displays
         glViewport(0, 0, WIDTH*2, HEIGHT*2);
 
+        glUseProgram (shaderProgram);
 
-        glActiveTexture(GL_TEXTURE0);
+        GLuint texture;
+        for (Group* g : readMesh->groups) {
+            for (Material* m : materials) {
+                if (m->name.data() == g->material) {
+                    texture = m->texture;
+                    glUniform3f(glGetUniformLocation(shaderProgram, "Ka"), m->ka->r, m->ka->g, m->ka->b);
+                    glUniform3f(glGetUniformLocation(shaderProgram, "Kd"), m->kd->r, m->kd->g, m->kd->b);
+                    glUniform3f(glGetUniformLocation(shaderProgram, "Ks"), m->ks->r, m->ks->g, m->ks->b);
+                    glUniform1f(glGetUniformLocation(shaderProgram, "Ns"), m->ns);
+                }
+            }
+            glActiveTexture(GL_TEXTURE0);
 
-        glBindTexture(GL_TEXTURE_2D, materials[0]->texture);
+            glBindTexture(GL_TEXTURE_2D, texture);
 
-        glUniform1i(glGetUniformLocation(shader_programme, "theTexture"), 0);
+            glUniform1i(glGetUniformLocation(shaderProgram, "theTexture"), 0);
 
-        glBindVertexArray(readMesh->groups[0]->vao);
-        // draw points 0-3 from the currently bound VAO with current in-use shader
-        glDrawArrays(GL_TRIANGLES, 0, readMesh->groups[0]->faces.size()*3);
+            glBindVertexArray(g->vao);
+            // draw points 0-3 from the currently bound VAO with current in-use shader
+            glDrawArrays(GL_TRIANGLES, 0, g->faces.size()*3);
+        }
+
+
 
         /* update other events like input handling */
         glfwPollEvents ();
-        /* put the stuff we've been drawing onto the display */
+
+        // Camera movements are processed below
+        bool cam_moved = false;
+        if (glfwGetKey(window, GLFW_KEY_A)) {
+            cam_pos[0] -= cam_speed * elapsed_seconds;
+            cam_moved = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_D)) {
+            cam_pos[0] += cam_speed * elapsed_seconds;
+            cam_moved = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_PAGE_UP)) {
+            cam_pos[1] += cam_speed * elapsed_seconds;
+            cam_moved = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN)) {
+            cam_pos[1] -= cam_speed * elapsed_seconds;
+            cam_moved = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_W)) {
+            cam_pos[2] -= cam_speed * elapsed_seconds;
+            cam_moved = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_S)) {
+            cam_pos[2] += cam_speed * elapsed_seconds;
+            cam_moved = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_LEFT)) {
+            cam_yaw += cam_yaw_speed * elapsed_seconds;
+            cam_moved = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_RIGHT)) {
+            cam_yaw -= cam_yaw_speed * elapsed_seconds;
+            cam_moved = true;
+        }
+
+        // Updating view matrix to reflect camera movement
+        if (cam_moved) {
+            mat4 T = translate(identity_mat4(), vec3(-cam_pos[0], -cam_pos[1], -cam_pos[2]));
+            mat4 R = rotate_y_deg(identity_mat4(), -cam_yaw);
+            mat4 view = R * T;
+            glUniformMatrix4fv(viewLocation, 1, GL_FALSE, view.m);
+        }
+
         glfwSwapBuffers (window);
+
+        // If ESC is pressed, close
         if(GLFW_PRESS == glfwGetKey(window, GLFW_KEY_ESCAPE)){
             glfwSetWindowShouldClose(window, 1);
         }
     }
 
-    /* close GL context and any other GLFW resources */
     glfwTerminate();
     return 0;
 }
