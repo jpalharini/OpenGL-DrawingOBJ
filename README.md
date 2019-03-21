@@ -1,4 +1,4 @@
-# OpenGL-DrawingOBJ
+# Load and drawing an OBJ using OpenGL
 
 This is one of my projects for the Graphical Computing subject of the BsC in Computer Science at Universidade do Vale do Rio dos Sinos (UNISINOS).
 
